@@ -28,6 +28,8 @@ macro_rules! fields {
     };
 }
 
+pub const VERSION: &str = "2.0";
+
 pub mod id {
     expected!("string|number:i64");
 }
@@ -50,10 +52,11 @@ pub mod error {
 pub mod request {
     name!("Request");
     expected!(
-        r#"{"id":"null|string|number:i64","method":"string","params":"null|array:any|object:any"}"#
+        r#"{"jsonrpc":"2.0","id":"null|string|number:i64","method":"string","params":"null|array:any|object:any"}"#
     );
 
     fields!(
+        JSONRPC => "jsonrpc",
         ID => "id",
         METHOD => "method",
         PARAMS => "params",
@@ -63,10 +66,11 @@ pub mod request {
 pub mod response {
     name!("Response");
     expected!(
-        r#"{"id":"string|number:i64","result":"any"}|{"id":"null|string|number:i64","error":"object:Error"}"#
+        r#"{"jsonrpc":"2.0","id":"string|number:i64","result":"any"}|{"jsonrpc":"2.0","id":"null|string|number:i64","error":"object:Error"}"#
     );
 
     fields!(
+        JSONRPC => "jsonrpc",
         ID => "id",
         RESULT => "result",
         ERROR => "error",

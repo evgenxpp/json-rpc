@@ -14,6 +14,7 @@ mod tests {
     #[test]
     fn main() {
         let json = json!({
+            "jsonrpc": "2.0",
             "id": "123",
             "result": null,
             "error": {

@@ -42,6 +42,7 @@ impl Serialize for Request {
     {
         let mut state = serializer.serialize_struct(schema::request::NAME, 3)?;
 
+        state.serialize_field(schema::request::fields::JSONRPC, schema::VERSION)?;
         state.serialize_field(schema::request::fields::ID, &self.id())?;
         state.serialize_field(schema::request::fields::METHOD, self.method())?;
 
@@ -72,6 +73,7 @@ impl Serialize for Response {
     {
         let mut state = serializer.serialize_struct(schema::response::NAME, 2)?;
 
+        state.serialize_field(schema::response::fields::JSONRPC, schema::VERSION)?;
         state.serialize_field(schema::response::fields::ID, &self.id())?;
 
         match self.result() {

@@ -195,18 +195,27 @@ impl<'de> Visitor<'de> for RequestVisitor {
     where
         A: MapAccess<'de>,
     {
+        let mut jsonrpc = None;
         let mut id = None;
         let mut method = None;
         let mut params = None;
 
         while let Some((key, value)) = map.next_entry::<Cow<str>, Value>()? {
             match &*key {
+                schema::request::fields::JSONRPC => {
+                    jsonrpc = Some(deserialize_string(schema::request::fields::JSONRPC, value)?);
+                }
                 schema::request::fields::ID => id = Self::visit_field_id(value)?,
                 schema::request::fields::METHOD => method = Some(Self::visit_field_method(value)?),
                 schema::request::fields::PARAMS => params = Self::visit_field_params(value)?,
                 unknown => return Err(Self::visit_unknown(unknown)),
             }
         }
+
+        ensure_valid_jsonrpc_version(
+            schema::request::fields::JSONRPC,
+            unwrap_or_missing_error(schema::request::fields::JSONRPC, jsonrpc)?,
+        )?;
 
         let method = unwrap_or_missing_error(schema::request::fields::METHOD, method)?;
 
@@ -250,12 +259,16 @@ impl<'de> Visitor<'de> for ResponseVisitor {
     where
         A: MapAccess<'de>,
     {
+        let mut jsonrpc = None;
         let mut id = None;
         let mut result = None;
         let mut error = None;
 
         while let Some((key, value)) = map.next_entry::<Cow<str>, Value>()? {
             match &*key {
+                schema::response::fields::JSONRPC => {
+                    jsonrpc = Some(deserialize_string(schema::request::fields::JSONRPC, value)?);
+                }
                 schema::response::fields::ID => id = Self::visit_field_id(value)?,
                 schema::response::fields::RESULT => result = Some(value),
                 schema::response::fields::ERROR => {
@@ -264,6 +277,11 @@ impl<'de> Visitor<'de> for ResponseVisitor {
                 unknown => return Err(Self::visit_unknown(unknown)),
             }
         }
+
+        ensure_valid_jsonrpc_version(
+            schema::response::fields::JSONRPC,
+            unwrap_or_missing_error(schema::response::fields::JSONRPC, jsonrpc)?,
+        )?;
 
         match (result, error) {
             (Some(_), Some(_)) => Err(serde::de::Error::custom(
@@ -370,5 +388,21 @@ where
     match value {
         Value::Null => Ok(None),
         _ => deserialize_string(field, value).map(Some),
+    }
+}
+
+fn ensure_valid_jsonrpc_version<E: serde::de::Error>(
+    field: &str,
+    jsonrpc: String,
+) -> std::result::Result<(), E> {
+    if jsonrpc == schema::VERSION {
+        Ok(())
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "invalid value for field `{}`: expected version \"{}\", got \"{}\"",
+            field,
+            schema::VERSION,
+            jsonrpc
+        )))
     }
 }
