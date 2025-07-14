@@ -31,7 +31,7 @@ impl<'de> Visitor<'de> for BatchRequestVisitor {
     where
         A: SeqAccess<'de>,
     {
-        let mut requests = Vec::new();
+        let mut requests = Vec::with_capacity(seq.size_hint().unwrap_or_default());
 
         while let Some(request) = seq.next_element::<Request>()? {
             requests.push(request);
@@ -63,7 +63,7 @@ impl<'de> Visitor<'de> for BatchResponseVisitor {
     where
         A: SeqAccess<'de>,
     {
-        let mut responses = Vec::new();
+        let mut responses = Vec::with_capacity(seq.size_hint().unwrap_or_default());
 
         while let Some(request) = seq.next_element::<Response>()? {
             responses.push(request);
@@ -205,7 +205,8 @@ impl<'de> Visitor<'de> for MessageVisitor {
     {
         if let Some(raw_value) = seq.next_element::<Value>()? {
             if let Ok(request) = Request::deserialize(&raw_value) {
-                let mut requests = vec![request];
+                let mut requests = Vec::with_capacity(seq.size_hint().unwrap_or(1));
+                requests.push(request);
 
                 while let Some(request) = seq.next_element::<Request>()? {
                     requests.push(request);
@@ -215,7 +216,8 @@ impl<'de> Visitor<'de> for MessageVisitor {
             }
 
             if let Ok(response) = Response::deserialize(&raw_value) {
-                let mut responses = vec![response];
+                let mut responses = Vec::with_capacity(seq.size_hint().unwrap_or(1));
+                responses.push(response);
 
                 while let Some(response) = seq.next_element::<Response>()? {
                     responses.push(response);
@@ -224,7 +226,7 @@ impl<'de> Visitor<'de> for MessageVisitor {
                 return Ok(BatchResponse::new(responses).into());
             }
 
-            Err(serde::de::Error::custom("unknown"))
+            Err(serde::de::Error::custom("invalid batch element type"))
         } else {
             Err(serde::de::Error::custom("empty array"))
         }
@@ -244,7 +246,9 @@ impl<'de> Visitor<'de> for MessageVisitor {
             return Ok(response.into());
         }
 
-        Err(serde::de::Error::custom("nor req not resp"))
+        Err(serde::de::Error::custom(
+            "object is neither a Request nor a Response",
+        ))
     }
 }
 
@@ -398,7 +402,10 @@ impl<'de> Visitor<'de> for ResponseVisitor {
         while let Some((key, value)) = map.next_entry::<Cow<str>, Value>()? {
             match &*key {
                 schema::response::fields::JSONRPC => {
-                    jsonrpc = Some(deserialize_string(schema::request::fields::JSONRPC, value)?);
+                    jsonrpc = Some(deserialize_string(
+                        schema::response::fields::JSONRPC,
+                        value,
+                    )?);
                 }
                 schema::response::fields::ID => id = Self::visit_field_id(value)?,
                 schema::response::fields::RESULT => result = Some(value),
