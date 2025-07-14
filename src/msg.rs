@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::fmt::{self, Display};
 use std::result::Result as StdResult;
@@ -129,27 +128,7 @@ impl Response {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Message {
-    Request(Request),
-    Response(Response),
-}
-
-impl From<Request> for Message {
-    fn from(value: Request) -> Self {
-        Message::Request(value)
-    }
-}
-
-impl From<Response> for Message {
-    fn from(value: Response) -> Self {
-        Message::Response(value)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Debug)]
 pub struct BatchRequest(Vec<Request>);
 
 impl BatchRequest {
@@ -178,8 +157,7 @@ impl From<BatchRequest> for Vec<Request> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Debug)]
 pub struct BatchResponse(Vec<Response>);
 
 impl BatchResponse {
@@ -205,5 +183,37 @@ impl From<Vec<Response>> for BatchResponse {
 impl From<BatchResponse> for Vec<Response> {
     fn from(value: BatchResponse) -> Self {
         value.0
+    }
+}
+
+#[derive(Debug)]
+pub enum Message {
+    Request(Request),
+    Response(Response),
+    BatchRequest(BatchRequest),
+    BatchResponse(BatchResponse),
+}
+
+impl From<Request> for Message {
+    fn from(value: Request) -> Self {
+        Message::Request(value)
+    }
+}
+
+impl From<Response> for Message {
+    fn from(value: Response) -> Self {
+        Message::Response(value)
+    }
+}
+
+impl From<BatchRequest> for Message {
+    fn from(value: BatchRequest) -> Self {
+        Message::BatchRequest(value)
+    }
+}
+
+impl From<BatchResponse> for Message {
+    fn from(value: BatchResponse) -> Self {
+        Message::BatchResponse(value)
     }
 }

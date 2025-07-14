@@ -1,8 +1,11 @@
-use serde::{Serialize, ser::SerializeStruct};
+use serde::{
+    Serialize,
+    ser::{SerializeSeq, SerializeStruct},
+};
 
 use crate::{
     err::Error,
-    msg::{Id, Request, RequestParams, Response},
+    msg::{BatchRequest, BatchResponse, Id, Message, Request, RequestParams, Response},
     schema,
 };
 
@@ -79,6 +82,52 @@ impl Serialize for Response {
         match self.result() {
             Ok(result) => state.serialize_field(schema::response::fields::RESULT, result)?,
             Err(error) => state.serialize_field(schema::response::fields::ERROR, error)?,
+        }
+
+        state.end()
+    }
+}
+
+impl Serialize for Message {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Message::Request(request) => request.serialize(serializer),
+            Message::Response(response) => response.serialize(serializer),
+            Message::BatchRequest(batch_response) => batch_response.serialize(serializer),
+            Message::BatchResponse(batch_response) => batch_response.serialize(serializer),
+        }
+    }
+}
+
+impl Serialize for BatchRequest {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let requests = self.requests();
+        let mut state = serializer.serialize_seq(Some(requests.len()))?;
+
+        for request in requests.iter() {
+            state.serialize_element(request)?;
+        }
+
+        state.end()
+    }
+}
+
+impl Serialize for BatchResponse {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let responses = self.responses();
+        let mut state = serializer.serialize_seq(Some(responses.len()))?;
+
+        for response in responses.iter() {
+            state.serialize_element(response)?;
         }
 
         state.end()

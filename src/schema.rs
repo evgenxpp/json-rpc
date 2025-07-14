@@ -76,3 +76,15 @@ pub mod response {
         ERROR => "error",
     );
 }
+
+pub mod batch_request {
+    expected!("array:Request");
+}
+
+pub mod batch_response {
+    expected!("array:Response");
+}
+
+pub mod message {
+    expected!("array:Request|array:Response|object:Request|object:Response");
+}
