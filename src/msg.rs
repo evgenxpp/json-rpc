@@ -6,6 +6,7 @@ use crate::err::{Error, Result};
 
 #[derive(Debug, PartialEq)]
 pub enum Id {
+    Null,
     Num(i64),
     Str(String),
 }
@@ -13,8 +14,9 @@ pub enum Id {
 impl Display for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Id::Num(id) => write!(f, "{id}"),
-            Id::Str(id) => write!(f, "{id}"),
+            Id::Null => write!(f, "null"),
+            Id::Num(id) => write!(f, "{}", id),
+            Id::Str(id) => write!(f, "{}", id),
         }
     }
 }

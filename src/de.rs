@@ -166,6 +166,13 @@ impl<'de> Visitor<'de> for IdVisitor {
         formatter.write_str(schema::id::EXPECTED_SCHEMA)
     }
 
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Id::Null)
+    }
+
     fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
     where
         E: serde::de::Error,
@@ -299,13 +306,8 @@ impl<'de> Visitor<'de> for RequestParamsVisitor {
 struct RequestVisitor;
 
 impl RequestVisitor {
-    fn visit_field_id<E: serde::de::Error>(value: Value) -> std::result::Result<Option<Id>, E> {
-        match value {
-            Value::Null => Ok(None),
-            _ => Id::deserialize(value)
-                .map_err(|err| make_field_error(schema::request::fields::ID, err))
-                .map(Some),
-        }
+    fn visit_field_id<E: serde::de::Error>(value: Value) -> std::result::Result<Id, E> {
+        Id::deserialize(value).map_err(|err| make_field_error(schema::request::fields::ID, err))
     }
 
     fn visit_field_method<E: serde::de::Error>(value: Value) -> std::result::Result<String, E> {
@@ -347,10 +349,13 @@ impl<'de> Visitor<'de> for RequestVisitor {
         while let Some((key, value)) = map.next_entry::<Cow<str>, Value>()? {
             match &*key {
                 schema::request::fields::JSONRPC => {
-                    jsonrpc = Some(deserialize_string(schema::request::fields::JSONRPC, value)?);
+                    jsonrpc =
+                        deserialize_string(schema::request::fields::JSONRPC, value).map(Some)?;
                 }
-                schema::request::fields::ID => id = Self::visit_field_id(value)?,
-                schema::request::fields::METHOD => method = Some(Self::visit_field_method(value)?),
+                schema::request::fields::ID => id = Self::visit_field_id(value).map(Some)?,
+                schema::request::fields::METHOD => {
+                    method = Self::visit_field_method(value).map(Some)?
+                }
                 schema::request::fields::PARAMS => params = Self::visit_field_params(value)?,
                 unknown => return Err(Self::visit_unknown(unknown)),
             }
@@ -411,10 +416,8 @@ impl<'de> Visitor<'de> for ResponseVisitor {
         while let Some((key, value)) = map.next_entry::<Cow<str>, Value>()? {
             match &*key {
                 schema::response::fields::JSONRPC => {
-                    jsonrpc = Some(deserialize_string(
-                        schema::response::fields::JSONRPC,
-                        value,
-                    )?);
+                    jsonrpc =
+                        deserialize_string(schema::response::fields::JSONRPC, value).map(Some)?;
                 }
                 schema::response::fields::ID => id = Self::visit_field_id(value)?,
                 schema::response::fields::RESULT => result = Some(value),

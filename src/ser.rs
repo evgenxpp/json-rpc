@@ -41,6 +41,7 @@ impl Serialize for Id {
         S: serde::Serializer,
     {
         match self {
+            Self::Null => serializer.serialize_unit(),
             Self::Num(value) => serializer.serialize_i64(*value),
             Self::Str(value) => serializer.serialize_str(value),
         }
@@ -55,8 +56,11 @@ impl Serialize for Request {
         let mut state = serializer.serialize_struct(schema::request::NAME, 3)?;
 
         state.serialize_field(schema::request::fields::JSONRPC, schema::VERSION)?;
-        state.serialize_field(schema::request::fields::ID, &self.id())?;
         state.serialize_field(schema::request::fields::METHOD, self.method())?;
+
+        if let Some(id) = self.id() {
+            state.serialize_field(schema::request::fields::ID, id)?;
+        }
 
         if let Some(params) = self.params() {
             state.serialize_field(schema::request::fields::PARAMS, params)?;
