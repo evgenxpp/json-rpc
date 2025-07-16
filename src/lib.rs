@@ -15,11 +15,10 @@ mod tests {
     fn main() {
         let json = json!({
             "jsonrpc": "2.0",
-            "id": null,
-            "result": "test"
+            "method": "test"
         });
 
-        let req = serde_json::from_value::<Response>(json).unwrap();
+        let req = serde_json::from_value::<Request>(json).unwrap();
 
         println!("{:#?}", req);
 

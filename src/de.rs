@@ -316,13 +316,9 @@ impl RequestVisitor {
 
     fn visit_field_params<E: serde::de::Error>(
         value: Value,
-    ) -> std::result::Result<Option<RequestParams>, E> {
-        match value {
-            Value::Null => Ok(None),
-            _ => RequestParams::deserialize(value)
-                .map_err(|err| make_field_error(schema::request::fields::PARAMS, err))
-                .map(Some),
-        }
+    ) -> std::result::Result<RequestParams, E> {
+        RequestParams::deserialize(value)
+            .map_err(|err| make_field_error(schema::request::fields::PARAMS, err))
     }
 
     fn visit_unknown<E: serde::de::Error>(field: &str) -> E {
@@ -356,7 +352,9 @@ impl<'de> Visitor<'de> for RequestVisitor {
                 schema::request::fields::METHOD => {
                     method = Self::visit_field_method(value).map(Some)?
                 }
-                schema::request::fields::PARAMS => params = Self::visit_field_params(value)?,
+                schema::request::fields::PARAMS => {
+                    params = Self::visit_field_params(value).map(Some)?
+                }
                 unknown => return Err(Self::visit_unknown(unknown)),
             }
         }
