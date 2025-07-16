@@ -4,7 +4,7 @@ use serde::{
 };
 
 use crate::{
-    err::Error,
+    err::{Error, ErrorData},
     msg::{BatchRequest, BatchResponse, Id, Message, Request, RequestParams, Response},
     schema,
 };
@@ -23,6 +23,15 @@ impl Serialize for Error {
         }
 
         state.end()
+    }
+}
+
+impl Serialize for ErrorData {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.value().serialize(serializer)
     }
 }
 

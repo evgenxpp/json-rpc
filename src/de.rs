@@ -13,7 +13,7 @@ use serde::{
 use serde_json::Value;
 
 use crate::{
-    err::{Error, ErrorCode},
+    err::{Error, ErrorCode, ErrorData},
     msg::{BatchRequest, BatchResponse, Id, Message, Request, RequestParams, Response},
     schema,
 };
@@ -94,10 +94,9 @@ impl ErrorVisitor {
         deserialize_string(schema::error::fields::MESSAGE, value)
     }
 
-    fn visit_field_data<E: serde::de::Error>(
-        value: Value,
-    ) -> std::result::Result<Option<String>, E> {
-        deserialize_nullable_string(schema::error::fields::DATA, value)
+    fn visit_field_data<E: serde::de::Error>(value: Value) -> std::result::Result<ErrorData, E> {
+        ErrorData::deserialize(value)
+            .map_err(|err| make_field_error(schema::error::fields::DATA, err))
     }
 
     fn visit_unknown<E: serde::de::Error>(field: &str) -> E {
@@ -126,7 +125,7 @@ impl<'de> Visitor<'de> for ErrorVisitor {
                 schema::error::fields::MESSAGE => {
                     message = Self::visit_field_message(value).map(Some)?
                 }
-                schema::error::fields::DATA => data = Self::visit_field_data(value)?,
+                schema::error::fields::DATA => data = Self::visit_field_data(value).map(Some)?,
                 unknown => return Err(Self::visit_unknown(unknown)),
             }
         }
@@ -141,6 +140,16 @@ impl<'de> Visitor<'de> for ErrorVisitor {
         }
 
         Ok(error)
+    }
+}
+
+impl<'de> Deserialize<'de> for ErrorData {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        Ok(ErrorData::new(value))
     }
 }
 
@@ -495,7 +504,10 @@ where
 }
 
 fn map_field_error<E: serde::de::Error>(field: &'static str, error: Error) -> E {
-    make_field_error(field, error.data().unwrap_or_else(|| error.message()))
+    match error.data() {
+        Some(data) => make_field_error(field, data),
+        _ => make_field_error(field, error.message()),
+    }
 }
 
 fn unwrap_or_missing_error<T, E: serde::de::Error>(
@@ -517,16 +529,6 @@ where
     E: serde::de::Error,
 {
     String::deserialize(value).map_err(|err| make_field_error(field, err))
-}
-
-fn deserialize_nullable_string<E>(field: &'static str, value: Value) -> Result<Option<String>, E>
-where
-    E: serde::de::Error,
-{
-    match value {
-        Value::Null => Ok(None),
-        _ => deserialize_string(field, value).map(Some),
-    }
 }
 
 fn ensure_valid_jsonrpc_version<E: serde::de::Error>(
