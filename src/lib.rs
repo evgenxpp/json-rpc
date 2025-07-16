@@ -9,17 +9,17 @@ mod ser;
 mod tests {
     use serde_json::json;
 
-    use crate::msg::Request;
+    use crate::msg::{Request, Response};
 
     #[test]
     fn main() {
         let json = json!({
             "jsonrpc": "2.0",
             "id": null,
-            "method": "test"
+            "result": "test"
         });
 
-        let req = serde_json::from_value::<Request>(json).unwrap();
+        let req = serde_json::from_value::<Response>(json).unwrap();
 
         println!("{:#?}", req);
 

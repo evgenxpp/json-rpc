@@ -1,6 +1,5 @@
 use serde_json::{Map, Value};
 use std::fmt::{self, Display};
-use std::result::Result as StdResult;
 
 use crate::err::{Error, Result};
 
@@ -94,30 +93,30 @@ impl Request {
 
 #[derive(Debug)]
 pub struct Response {
-    id: Option<Id>,
+    id: Id,
     result: Result<Value>,
 }
 
 impl Response {
     pub fn new_success(id: Id, result: Value) -> Self {
         Self {
-            id: Some(id),
+            id,
             result: Ok(result),
         }
     }
 
-    pub fn new_error(id: Option<Id>, error: Error) -> Self {
+    pub fn new_error(id: Id, error: Error) -> Self {
         Self {
             id,
             result: Err(error),
         }
     }
 
-    pub fn id(&self) -> Option<&Id> {
-        self.id.as_ref()
+    pub fn id(&self) -> &Id {
+        &self.id
     }
 
-    pub fn result(&self) -> StdResult<&Value, &Error> {
+    pub fn result(&self) -> std::result::Result<&Value, &Error> {
         self.result.as_ref()
     }
 

@@ -378,13 +378,12 @@ impl<'de> Visitor<'de> for RequestVisitor {
 struct ResponseVisitor;
 
 impl ResponseVisitor {
-    fn visit_field_id<E: serde::de::Error>(value: Value) -> std::result::Result<Option<Id>, E> {
-        match value {
-            Value::Null => Ok(None),
-            _ => Id::deserialize(value)
-                .map_err(|err| make_field_error(schema::response::fields::ID, err))
-                .map(Some),
-        }
+    const MSG_PAYLOAD_AMBIGUITY: &str =
+        "`result` and `error` cannot both be present in the same response";
+    const MSG_MISSING_PAYLOAD: &str = "response must contain either `result` or `error`";
+
+    fn visit_field_id<E: serde::de::Error>(value: Value) -> std::result::Result<Id, E> {
+        Id::deserialize(value).map_err(|err| make_field_error(schema::response::fields::ID, err))
     }
 
     fn visit_field_error<E: serde::de::Error>(value: Value) -> std::result::Result<Error, E> {
@@ -419,7 +418,7 @@ impl<'de> Visitor<'de> for ResponseVisitor {
                     jsonrpc =
                         deserialize_string(schema::response::fields::JSONRPC, value).map(Some)?;
                 }
-                schema::response::fields::ID => id = Self::visit_field_id(value)?,
+                schema::response::fields::ID => id = Self::visit_field_id(value).map(Some)?,
                 schema::response::fields::RESULT => result = Some(value),
                 schema::response::fields::ERROR => {
                     error = Self::visit_field_error(value).map(Some)?
@@ -433,22 +432,13 @@ impl<'de> Visitor<'de> for ResponseVisitor {
             unwrap_or_missing_error(schema::response::fields::JSONRPC, jsonrpc)?,
         )?;
 
+        let id = unwrap_or_missing_error(schema::response::fields::ID, id)?;
+
         match (result, error) {
-            (Some(_), Some(_)) => Err(serde::de::Error::custom(
-                "`result` and `error` cannot both be present in the same response",
-            )),
-            (Some(result), None) => {
-                let id = id.ok_or_else(|| {
-                    serde::de::Error::custom(
-                        "`id` is required in a successful response with `result`",
-                    )
-                })?;
-                Ok(Response::new_success(id, result))
-            }
+            (Some(result), None) => Ok(Response::new_success(id, result)),
             (None, Some(error)) => Ok(Response::new_error(id, error)),
-            (None, None) => Err(serde::de::Error::custom(
-                "response must contain either `result` or `error`",
-            )),
+            (None, None) => Err(serde::de::Error::custom(Self::MSG_MISSING_PAYLOAD)),
+            (Some(_), Some(_)) => Err(serde::de::Error::custom(Self::MSG_PAYLOAD_AMBIGUITY)),
         }
     }
 }

@@ -40,7 +40,7 @@ pub mod params {
 
 pub mod error {
     name!("Error");
-    expected!(r#"{"code":"number:i64","message":"string","data":"null|string"}"#);
+    expected!(r#"{"code":"number:i64","message":"string","data":"any"}"#);
 
     fields!(
         CODE => "code",
@@ -66,7 +66,7 @@ pub mod request {
 pub mod response {
     name!("Response");
     expected!(
-        r#"{"jsonrpc":"2.0","id":"string|number:i64","result":"any"}|{"jsonrpc":"2.0","id":"null|string|number:i64","error":"object:Error"}"#
+        r#"{"jsonrpc":"2.0","id":"null|string|number:i64","result":"any"}|{"jsonrpc":"2.0","id":"null|string|number:i64","error":"object:Error"}"#
     );
 
     fields!(
