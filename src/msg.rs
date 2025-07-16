@@ -130,69 +130,9 @@ impl Response {
 }
 
 #[derive(Debug)]
-pub struct BatchRequest(Vec<Request>);
-
-impl BatchRequest {
-    pub fn new(requests: Vec<Request>) -> Self {
-        Self(requests)
-    }
-
-    pub fn requests(&self) -> &Vec<Request> {
-        &self.0
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.requests().is_empty()
-    }
-}
-
-impl From<Vec<Request>> for BatchRequest {
-    fn from(value: Vec<Request>) -> Self {
-        BatchRequest::new(value)
-    }
-}
-
-impl From<BatchRequest> for Vec<Request> {
-    fn from(value: BatchRequest) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug)]
-pub struct BatchResponse(Vec<Response>);
-
-impl BatchResponse {
-    pub fn new(responses: Vec<Response>) -> Self {
-        Self(responses)
-    }
-
-    pub fn responses(&self) -> &Vec<Response> {
-        &self.0
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.responses().is_empty()
-    }
-}
-
-impl From<Vec<Response>> for BatchResponse {
-    fn from(value: Vec<Response>) -> Self {
-        BatchResponse::new(value)
-    }
-}
-
-impl From<BatchResponse> for Vec<Response> {
-    fn from(value: BatchResponse) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug)]
 pub enum Message {
     Request(Request),
     Response(Response),
-    BatchRequest(BatchRequest),
-    BatchResponse(BatchResponse),
 }
 
 impl From<Request> for Message {
@@ -207,14 +147,31 @@ impl From<Response> for Message {
     }
 }
 
-impl From<BatchRequest> for Message {
-    fn from(value: BatchRequest) -> Self {
-        Message::BatchRequest(value)
+#[derive(Debug)]
+pub struct Batch(Vec<Message>);
+
+impl Batch {
+    pub fn new(requests: Vec<Message>) -> Self {
+        Self(requests)
+    }
+
+    pub fn messages(&self) -> &Vec<Message> {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.messages().is_empty()
     }
 }
 
-impl From<BatchResponse> for Message {
-    fn from(value: BatchResponse) -> Self {
-        Message::BatchResponse(value)
+impl From<Vec<Message>> for Batch {
+    fn from(value: Vec<Message>) -> Self {
+        Batch::new(value)
+    }
+}
+
+impl From<Batch> for Vec<Message> {
+    fn from(value: Batch) -> Self {
+        value.0
     }
 }

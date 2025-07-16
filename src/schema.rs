@@ -77,12 +77,8 @@ pub mod response {
     );
 }
 
-pub mod batch_request {
-    expected!("array:Request");
-}
-
-pub mod batch_response {
-    expected!("array:Response");
+pub mod batch {
+    expected!("array:[Request|Response]");
 }
 
 pub mod message {

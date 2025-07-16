@@ -14,71 +14,39 @@ use serde_json::Value;
 
 use crate::{
     err::{Error, ErrorCode, ErrorData},
-    msg::{BatchRequest, BatchResponse, Id, Message, Request, RequestParams, Response},
+    msg::{Batch, Id, Message, Request, RequestParams, Response},
     schema,
 };
 
-struct BatchRequestVisitor;
+struct BatchVisitor;
 
-impl<'de> Visitor<'de> for BatchRequestVisitor {
-    type Value = BatchRequest;
+impl<'de> Visitor<'de> for BatchVisitor {
+    type Value = Batch;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::batch_request::EXPECTED_SCHEMA)
+        formatter.write_str(schema::batch::EXPECTED_SCHEMA)
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
     where
         A: SeqAccess<'de>,
     {
-        let mut requests = Vec::with_capacity(seq.size_hint().unwrap_or_default());
+        let mut messages = Vec::with_capacity(seq.size_hint().unwrap_or_default());
 
-        while let Some(request) = seq.next_element::<Request>()? {
-            requests.push(request);
+        while let Some(message) = seq.next_element::<Message>()? {
+            messages.push(message);
         }
 
-        Ok(requests.into())
+        Ok(messages.into())
     }
 }
 
-impl<'de> Deserialize<'de> for BatchRequest {
+impl<'de> Deserialize<'de> for Batch {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_seq(BatchRequestVisitor)
-    }
-}
-
-struct BatchResponseVisitor;
-
-impl<'de> Visitor<'de> for BatchResponseVisitor {
-    type Value = BatchResponse;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::batch_response::EXPECTED_SCHEMA)
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        let mut responses = Vec::with_capacity(seq.size_hint().unwrap_or_default());
-
-        while let Some(request) = seq.next_element::<Response>()? {
-            responses.push(request);
-        }
-
-        Ok(responses.into())
-    }
-}
-
-impl<'de> Deserialize<'de> for BatchResponse {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(BatchResponseVisitor)
+        deserializer.deserialize_seq(BatchVisitor)
     }
 }
 
@@ -213,39 +181,6 @@ impl<'de> Visitor<'de> for MessageVisitor {
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(schema::message::EXPECTED_SCHEMA)
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        if let Some(raw_value) = seq.next_element::<Value>()? {
-            if let Ok(request) = Request::deserialize(&raw_value) {
-                let mut requests = Vec::with_capacity(seq.size_hint().unwrap_or(1));
-                requests.push(request);
-
-                while let Some(request) = seq.next_element::<Request>()? {
-                    requests.push(request);
-                }
-
-                return Ok(BatchRequest::new(requests).into());
-            }
-
-            if let Ok(response) = Response::deserialize(&raw_value) {
-                let mut responses = Vec::with_capacity(seq.size_hint().unwrap_or(1));
-                responses.push(response);
-
-                while let Some(response) = seq.next_element::<Response>()? {
-                    responses.push(response);
-                }
-
-                return Ok(BatchResponse::new(responses).into());
-            }
-
-            Err(serde::de::Error::custom("invalid batch element type"))
-        } else {
-            Err(serde::de::Error::custom("empty array"))
-        }
     }
 
     fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>

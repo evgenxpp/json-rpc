@@ -9,16 +9,13 @@ mod ser;
 mod tests {
     use serde_json::json;
 
-    use crate::msg::{Request, Response};
+    use crate::msg::{Batch, Message, Request, Response};
 
     #[test]
     fn main() {
-        let json = json!({
-            "jsonrpc": "2.0",
-            "method": "test"
-        });
+        let json = json!([ 1, "abc", true ]);
 
-        let req = serde_json::from_value::<Request>(json).unwrap();
+        let req = serde_json::from_value::<Batch>(json).unwrap();
 
         println!("{:#?}", req);
 

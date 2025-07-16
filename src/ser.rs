@@ -5,7 +5,7 @@ use serde::{
 
 use crate::{
     err::{Error, ErrorData},
-    msg::{BatchRequest, BatchResponse, Id, Message, Request, RequestParams, Response},
+    msg::{Batch, Id, Message, Request, RequestParams, Response},
     schema,
 };
 
@@ -109,38 +109,20 @@ impl Serialize for Message {
         match self {
             Message::Request(request) => request.serialize(serializer),
             Message::Response(response) => response.serialize(serializer),
-            Message::BatchRequest(batch_response) => batch_response.serialize(serializer),
-            Message::BatchResponse(batch_response) => batch_response.serialize(serializer),
         }
     }
 }
 
-impl Serialize for BatchRequest {
+impl Serialize for Batch {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let requests = self.requests();
+        let requests = self.messages();
         let mut state = serializer.serialize_seq(Some(requests.len()))?;
 
         for request in requests.iter() {
             state.serialize_element(request)?;
-        }
-
-        state.end()
-    }
-}
-
-impl Serialize for BatchResponse {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let responses = self.responses();
-        let mut state = serializer.serialize_seq(Some(responses.len()))?;
-
-        for response in responses.iter() {
-            state.serialize_element(response)?;
         }
 
         state.end()
