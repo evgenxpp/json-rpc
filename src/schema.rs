@@ -31,16 +31,22 @@ macro_rules! fields {
 pub const VERSION: &str = "2.0";
 
 pub mod id {
-    expected!("string|number:i64");
+    expected!(
+        r#"{"anyOf": [{ "type": "string" }, {"type": "integer", "minimum": 0, "maximum": 18446744073709551615}]}"#
+    );
 }
 
-pub mod params {
-    expected!("array:any|object:any");
+pub mod parameters {
+    expected!(
+        r#"{"anyOf": [{ "type": "array" }, { "type": "object", "additionalProperties": true }]}"#
+    );
 }
 
 pub mod error {
     name!("Error");
-    expected!(r#"{"code":"number:i64","message":"string","data":"any"}"#);
+    expected!(
+        r#"{"type": "object", "required": ["code", "message"], "properties": {"code": {"oneOf": [{ "enum": [-32700, -32600, -32601, -32602, -32603] }, {"type": "integer", "minimum": -32099, "maximum": -32000}]}, "message": {"type": "string"}, "data": {"type": ["object", "array", "string", "number", "boolean", "null"]}}, "additionalProperties": false}"#
+    );
 
     fields!(
         CODE => "code",
@@ -49,10 +55,23 @@ pub mod error {
     );
 }
 
+pub mod notification {
+    name!("Request");
+    expected!(
+        r#"{"jsonrpc":"2.0","id":"null|string|number:i64","method":"string","params":"array:any|object:any"}"#
+    );
+
+    fields!(
+        JSONRPC => "jsonrpc",
+        METHOD => "method",
+        PARAMS => "params",
+    );
+}
+
 pub mod request {
     name!("Request");
     expected!(
-        r#"{"jsonrpc":"2.0","id":"null|string|number:i64","method":"string","params":"null|array:any|object:any"}"#
+        r#"{"jsonrpc":"2.0","id":"null|string|number:i64","method":"string","params":"array:any|object:any"}"#
     );
 
     fields!(

@@ -1,12 +1,9 @@
-use std::{
-    borrow::Cow,
-    fmt::{self, Display},
-};
+use std::{any::type_name, fmt};
 
 use serde::{
     Deserialize, Deserializer,
     de::{
-        MapAccess, SeqAccess, Visitor,
+        self, MapAccess, SeqAccess, Visitor,
         value::{MapAccessDeserializer, SeqAccessDeserializer},
     },
 };
@@ -14,100 +11,222 @@ use serde_json::Value;
 
 use crate::{
     err::{Error, ErrorCode, ErrorData},
-    msg::{Batch, Id, Message, Request, RequestParams, Response},
+    msg::{Id, Message, Notification, Parameters, Request, Response},
     schema,
 };
 
-struct BatchVisitor;
-
-impl<'de> Visitor<'de> for BatchVisitor {
-    type Value = Batch;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::batch::EXPECTED_SCHEMA)
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        let mut messages = Vec::with_capacity(seq.size_hint().unwrap_or_default());
-
-        while let Some(message) = seq.next_element::<Message>()? {
-            messages.push(message);
-        }
-
-        Ok(messages.into())
-    }
-}
-
-impl<'de> Deserialize<'de> for Batch {
+impl<'de> Deserialize<'de> for Id {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_seq(BatchVisitor)
-    }
-}
+        struct IdVisitor;
 
-struct ErrorVisitor;
+        impl<'de> Visitor<'de> for IdVisitor {
+            type Value = Id;
 
-impl ErrorVisitor {
-    fn visit_field_code<E: serde::de::Error>(value: Value) -> std::result::Result<ErrorCode, E> {
-        let code = deserialize_i64(schema::error::fields::CODE, value)?;
-        ErrorCode::try_from(code).map_err(|err| map_field_error(schema::error::fields::CODE, err))
-    }
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(schema::id::EXPECTED_SCHEMA)
+            }
 
-    fn visit_field_message<E: serde::de::Error>(value: Value) -> std::result::Result<String, E> {
-        deserialize_string(schema::error::fields::MESSAGE, value)
-    }
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Id::default())
+            }
 
-    fn visit_field_data<E: serde::de::Error>(value: Value) -> std::result::Result<ErrorData, E> {
-        ErrorData::deserialize(value)
-            .map_err(|err| make_field_error(schema::error::fields::DATA, err))
-    }
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Id::U64(v))
+            }
 
-    fn visit_unknown<E: serde::de::Error>(field: &str) -> E {
-        serde::de::Error::unknown_field(field, schema::error::FIELD_NAMES)
-    }
-}
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Id::Str(v))
+            }
 
-impl<'de> Visitor<'de> for ErrorVisitor {
-    type Value = Error;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::error::EXPECTED_SCHEMA)
-    }
-
-    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: MapAccess<'de>,
-    {
-        let mut code = None;
-        let mut message = None;
-        let mut data = None;
-
-        while let Some((key, value)) = map.next_entry::<Cow<str>, Value>()? {
-            match &*key {
-                schema::error::fields::CODE => code = Self::visit_field_code(value).map(Some)?,
-                schema::error::fields::MESSAGE => {
-                    message = Self::visit_field_message(value).map(Some)?
-                }
-                schema::error::fields::DATA => data = Self::visit_field_data(value).map(Some)?,
-                unknown => return Err(Self::visit_unknown(unknown)),
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_string(v.to_owned())
             }
         }
 
-        let mut error = Error::new(
-            unwrap_or_missing_error(schema::error::fields::CODE, code)?,
-            unwrap_or_missing_error(schema::error::fields::MESSAGE, message)?,
-        );
+        deserializer.deserialize_any(IdVisitor)
+    }
+}
 
-        if let Some(data) = data {
-            error = error.with_data(data);
+impl<'de> Deserialize<'de> for Parameters {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ParametersVisitor;
+
+        impl<'de> Visitor<'de> for ParametersVisitor {
+            type Value = Parameters;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(schema::parameters::EXPECTED_SCHEMA)
+            }
+
+            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let array = Deserialize::deserialize(SeqAccessDeserializer::new(seq))?;
+                Ok(Parameters::Array(array))
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let object = Deserialize::deserialize(MapAccessDeserializer::new(map))?;
+                Ok(Parameters::Object(object))
+            }
         }
 
-        Ok(error)
+        deserializer.deserialize_any(ParametersVisitor)
+    }
+}
+
+impl<'de> Deserialize<'de> for Notification {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use schema::notification::{EXPECTED_SCHEMA, FIELD_NAMES, fields};
+
+        struct NotificationVisitor;
+
+        impl<'de> Visitor<'de> for NotificationVisitor {
+            type Value = Notification;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(EXPECTED_SCHEMA)
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut jsonrpc: Option<String> = None;
+                let mut method: Option<String> = None;
+                let mut params: Option<Parameters> = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        fields::JSONRPC => {
+                            jsonrpc = de_to_value(&mut map, fields::JSONRPC, jsonrpc)?;
+                        }
+                        fields::METHOD => {
+                            method = de_to_value(&mut map, fields::METHOD, method)?;
+                        }
+                        fields::PARAMS => {
+                            params = de_to_value(&mut map, fields::PARAMS, params)?;
+                        }
+                        unknown => {
+                            return Err(make_unknown_field_error(unknown, FIELD_NAMES));
+                        }
+                    }
+                }
+
+                validate_jsonrpc_version(fields::JSONRPC, jsonrpc)?;
+
+                let method = unwrap_or_missing_error(fields::METHOD, method)?;
+
+                Ok(Notification::new(method, params))
+            }
+        }
+
+        deserializer.deserialize_struct(
+            type_name::<Notification>(),
+            FIELD_NAMES,
+            NotificationVisitor,
+        )
+    }
+}
+
+impl<'de> Deserialize<'de> for Request {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use schema::request::{EXPECTED_SCHEMA, FIELD_NAMES, fields};
+
+        struct RequestVisitor;
+
+        impl<'de> Visitor<'de> for RequestVisitor {
+            type Value = Request;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(EXPECTED_SCHEMA)
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut jsonrpc: Option<String> = None;
+                let mut id: Option<Id> = None;
+                let mut method: Option<String> = None;
+                let mut params: Option<Parameters> = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        fields::JSONRPC => {
+                            jsonrpc = de_to_value(&mut map, fields::JSONRPC, jsonrpc)?;
+                        }
+                        fields::ID => {
+                            id = de_to_value(&mut map, fields::ID, id)?;
+                        }
+                        fields::METHOD => {
+                            method = de_to_value(&mut map, fields::METHOD, method)?;
+                        }
+                        fields::PARAMS => {
+                            params = de_to_value(&mut map, fields::PARAMS, params)?;
+                        }
+                        unknown => {
+                            return Err(make_unknown_field_error(unknown, FIELD_NAMES));
+                        }
+                    }
+                }
+
+                validate_jsonrpc_version(fields::JSONRPC, jsonrpc)?;
+
+                let id = unwrap_or_missing_error(fields::ID, id)?;
+                let method = unwrap_or_missing_error(fields::METHOD, method)?;
+
+                Ok(Request::new(id, method, params))
+            }
+        }
+
+        deserializer.deserialize_struct(type_name::<Request>(), FIELD_NAMES, RequestVisitor)
+    }
+}
+
+impl<'de> Deserialize<'de> for ErrorCode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let code = i64::deserialize(deserializer)?;
+
+        ErrorCode::create(code).map_err(|err| {
+            let msg = err
+                .data
+                .map(|data| data.to_string())
+                .unwrap_or(err.message.into());
+
+            de::Error::custom(msg)
+        })
     }
 }
 
@@ -121,85 +240,127 @@ impl<'de> Deserialize<'de> for ErrorData {
     }
 }
 
-struct IdVisitor;
+impl<'de> Deserialize<'de> for Error {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use schema::error::{EXPECTED_SCHEMA, FIELD_NAMES, fields};
 
-impl IdVisitor {
-    const MSG_NUMBER_TOO_LARGE: &str = "number too large: expected a signed 64-bit integer";
+        struct ErrorVisitor;
+
+        impl<'de> Visitor<'de> for ErrorVisitor {
+            type Value = Error;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(EXPECTED_SCHEMA)
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut code: Option<ErrorCode> = None;
+                let mut message: Option<String> = None;
+                let mut data: Option<ErrorData> = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        fields::CODE => {
+                            code = de_to_value(&mut map, fields::CODE, code)?;
+                        }
+                        fields::MESSAGE => {
+                            message = de_to_value(&mut map, fields::MESSAGE, message)?;
+                        }
+                        fields::DATA => {
+                            data = de_to_value(&mut map, fields::DATA, data)?;
+                        }
+                        unknown => {
+                            return Err(make_unknown_field_error(unknown, FIELD_NAMES));
+                        }
+                    }
+                }
+
+                let mut error = Error::new(
+                    unwrap_or_missing_error(fields::CODE, code)?,
+                    unwrap_or_missing_error(fields::MESSAGE, message)?,
+                );
+
+                if let Some(data) = data {
+                    error = error.with_data(data);
+                }
+
+                Ok(error)
+            }
+        }
+
+        deserializer.deserialize_struct(type_name::<Error>(), FIELD_NAMES, ErrorVisitor)
+    }
 }
 
-impl<'de> Visitor<'de> for IdVisitor {
-    type Value = Id;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::id::EXPECTED_SCHEMA)
-    }
-
-    fn visit_unit<E>(self) -> Result<Self::Value, E>
+impl<'de> Deserialize<'de> for Response {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        E: serde::de::Error,
+        D: Deserializer<'de>,
     {
-        Ok(Id::Null)
-    }
+        use schema::response::{EXPECTED_SCHEMA, FIELD_NAMES, fields};
 
-    fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        self.visit_string(v.to_owned())
-    }
+        const MSG_MISSING_PAYLOAD: &str = "response must contain either `result` or `error`";
+        const MSG_PAYLOAD_AMBIGUITY: &str =
+            "`result` and `error` cannot both be present in the same response";
 
-    fn visit_string<E>(self, v: String) -> std::result::Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(Self::Value::Str(v))
-    }
+        struct ResponseVisitor;
 
-    fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(Self::Value::Num(v))
-    }
+        impl<'de> Visitor<'de> for ResponseVisitor {
+            type Value = Response;
 
-    fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        if v <= i64::MAX as u64 {
-            Ok(Self::Value::Num(v as i64))
-        } else {
-            Err(serde::de::Error::custom(Self::MSG_NUMBER_TOO_LARGE))
-        }
-    }
-}
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str(EXPECTED_SCHEMA)
+            }
 
-struct MessageVisitor;
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut jsonrpc: Option<String> = None;
+                let mut id: Option<Id> = None;
+                let mut result: Option<Value> = None;
+                let mut error: Option<Error> = None;
 
-impl<'de> Visitor<'de> for MessageVisitor {
-    type Value = Message;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        fields::JSONRPC => {
+                            jsonrpc = de_to_value(&mut map, fields::JSONRPC, jsonrpc)?;
+                        }
+                        fields::ID => {
+                            id = de_to_value(&mut map, fields::ID, id)?;
+                        }
+                        fields::RESULT => {
+                            result = de_to_value(&mut map, fields::RESULT, result)?;
+                        }
+                        fields::ERROR => {
+                            error = de_to_value(&mut map, fields::ERROR, error)?;
+                        }
+                        unknown => {
+                            return Err(make_unknown_field_error(unknown, FIELD_NAMES));
+                        }
+                    }
+                }
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::message::EXPECTED_SCHEMA)
-    }
+                validate_jsonrpc_version(fields::JSONRPC, jsonrpc)?;
 
-    fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
-    where
-        A: MapAccess<'de>,
-    {
-        let raw_value = Value::deserialize(MapAccessDeserializer::new(map))?;
+                let id = unwrap_or_missing_error(fields::ID, id)?;
 
-        if let Ok(request) = Request::deserialize(&raw_value) {
-            return Ok(request.into());
+                match (result, error) {
+                    (Some(result), None) => Ok(Response::new_success(id, result)),
+                    (None, Some(error)) => Ok(Response::new_error(id, error)),
+                    (None, None) => Err(de::Error::custom(MSG_MISSING_PAYLOAD)),
+                    (Some(_), Some(_)) => Err(de::Error::custom(MSG_PAYLOAD_AMBIGUITY)),
+                }
+            }
         }
 
-        if let Ok(response) = Response::deserialize(&raw_value) {
-            return Ok(response.into());
-        }
-
-        Err(serde::de::Error::custom(
-            "object is neither a Request nor a Response",
-        ))
+        deserializer.deserialize_struct(type_name::<Response>(), FIELD_NAMES, ResponseVisitor)
     }
 }
 
@@ -208,267 +369,60 @@ impl<'de> Deserialize<'de> for Message {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_any(MessageVisitor)
+        let raw: Value = Value::deserialize(deserializer)?;
+
+        Request::deserialize(&raw)
+            .map(Message::Request)
+            .or_else(|_| Notification::deserialize(&raw).map(Message::Notification))
+            .or_else(|_| Response::deserialize(&raw).map(Message::Response))
+            .map_err(de::Error::custom)
     }
 }
 
-struct RequestParamsVisitor;
-
-impl<'de> Visitor<'de> for RequestParamsVisitor {
-    type Value = RequestParams;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::params::EXPECTED_SCHEMA)
-    }
-
-    fn visit_seq<A>(self, seq: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        let array = Deserialize::deserialize(SeqAccessDeserializer::new(seq))?;
-        Ok(RequestParams::Array(array))
-    }
-
-    fn visit_map<A>(self, map: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: MapAccess<'de>,
-    {
-        let object = Deserialize::deserialize(MapAccessDeserializer::new(map))?;
-        Ok(RequestParams::Object(object))
-    }
-}
-
-struct RequestVisitor;
-
-impl RequestVisitor {
-    fn visit_field_id<E: serde::de::Error>(value: Value) -> std::result::Result<Id, E> {
-        Id::deserialize(value).map_err(|err| make_field_error(schema::request::fields::ID, err))
-    }
-
-    fn visit_field_method<E: serde::de::Error>(value: Value) -> std::result::Result<String, E> {
-        deserialize_string(schema::request::fields::METHOD, value)
-    }
-
-    fn visit_field_params<E: serde::de::Error>(
-        value: Value,
-    ) -> std::result::Result<RequestParams, E> {
-        RequestParams::deserialize(value)
-            .map_err(|err| make_field_error(schema::request::fields::PARAMS, err))
-    }
-
-    fn visit_unknown<E: serde::de::Error>(field: &str) -> E {
-        serde::de::Error::unknown_field(field, schema::request::FIELD_NAMES)
-    }
-}
-
-impl<'de> Visitor<'de> for RequestVisitor {
-    type Value = Request;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::request::EXPECTED_SCHEMA)
-    }
-
-    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: MapAccess<'de>,
-    {
-        let mut jsonrpc = None;
-        let mut id = None;
-        let mut method = None;
-        let mut params = None;
-
-        while let Some((key, value)) = map.next_entry::<Cow<str>, Value>()? {
-            match &*key {
-                schema::request::fields::JSONRPC => {
-                    jsonrpc =
-                        deserialize_string(schema::request::fields::JSONRPC, value).map(Some)?;
-                }
-                schema::request::fields::ID => id = Self::visit_field_id(value).map(Some)?,
-                schema::request::fields::METHOD => {
-                    method = Self::visit_field_method(value).map(Some)?
-                }
-                schema::request::fields::PARAMS => {
-                    params = Self::visit_field_params(value).map(Some)?
-                }
-                unknown => return Err(Self::visit_unknown(unknown)),
-            }
-        }
-
-        ensure_valid_jsonrpc_version(
-            schema::request::fields::JSONRPC,
-            unwrap_or_missing_error(schema::request::fields::JSONRPC, jsonrpc)?,
-        )?;
-
-        let method = unwrap_or_missing_error(schema::request::fields::METHOD, method)?;
-
-        Ok(match id {
-            Some(id) => Request::new_request(id, method, params),
-            _ => Request::new_notification(method, params),
-        })
-    }
-}
-
-struct ResponseVisitor;
-
-impl ResponseVisitor {
-    const MSG_PAYLOAD_AMBIGUITY: &str =
-        "`result` and `error` cannot both be present in the same response";
-    const MSG_MISSING_PAYLOAD: &str = "response must contain either `result` or `error`";
-
-    fn visit_field_id<E: serde::de::Error>(value: Value) -> std::result::Result<Id, E> {
-        Id::deserialize(value).map_err(|err| make_field_error(schema::response::fields::ID, err))
-    }
-
-    fn visit_field_error<E: serde::de::Error>(value: Value) -> std::result::Result<Error, E> {
-        Error::deserialize(value)
-            .map_err(|err| make_field_error(schema::response::fields::ERROR, err))
-    }
-
-    fn visit_unknown<E: serde::de::Error>(field: &str) -> E {
-        serde::de::Error::unknown_field(field, schema::response::FIELD_NAMES)
-    }
-}
-
-impl<'de> Visitor<'de> for ResponseVisitor {
-    type Value = Response;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(schema::response::EXPECTED_SCHEMA)
-    }
-
-    fn visit_map<A>(self, mut map: A) -> std::result::Result<Self::Value, A::Error>
-    where
-        A: MapAccess<'de>,
-    {
-        let mut jsonrpc = None;
-        let mut id = None;
-        let mut result = None;
-        let mut error = None;
-
-        while let Some((key, value)) = map.next_entry::<Cow<str>, Value>()? {
-            match &*key {
-                schema::response::fields::JSONRPC => {
-                    jsonrpc =
-                        deserialize_string(schema::response::fields::JSONRPC, value).map(Some)?;
-                }
-                schema::response::fields::ID => id = Self::visit_field_id(value).map(Some)?,
-                schema::response::fields::RESULT => result = Some(value),
-                schema::response::fields::ERROR => {
-                    error = Self::visit_field_error(value).map(Some)?
-                }
-                unknown => return Err(Self::visit_unknown(unknown)),
-            }
-        }
-
-        ensure_valid_jsonrpc_version(
-            schema::response::fields::JSONRPC,
-            unwrap_or_missing_error(schema::response::fields::JSONRPC, jsonrpc)?,
-        )?;
-
-        let id = unwrap_or_missing_error(schema::response::fields::ID, id)?;
-
-        match (result, error) {
-            (Some(result), None) => Ok(Response::new_success(id, result)),
-            (None, Some(error)) => Ok(Response::new_error(id, error)),
-            (None, None) => Err(serde::de::Error::custom(Self::MSG_MISSING_PAYLOAD)),
-            (Some(_), Some(_)) => Err(serde::de::Error::custom(Self::MSG_PAYLOAD_AMBIGUITY)),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for Error {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_map(ErrorVisitor)
-    }
-}
-
-impl<'de> Deserialize<'de> for Id {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_any(IdVisitor)
-    }
-}
-
-impl<'de> Deserialize<'de> for Request {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_any(RequestVisitor)
-    }
-}
-
-impl<'de> Deserialize<'de> for RequestParams {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_any(RequestParamsVisitor)
-    }
-}
-
-impl<'de> Deserialize<'de> for Response {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_any(ResponseVisitor)
-    }
-}
-
-fn make_field_error<R, E>(field: &'static str, reason: R) -> E
-where
-    R: Display,
-    E: serde::de::Error,
-{
-    E::custom(format!("field `{}` contains an {}", field, reason))
-}
-
-fn map_field_error<E: serde::de::Error>(field: &'static str, error: Error) -> E {
-    match error.data() {
-        Some(data) => make_field_error(field, data),
-        _ => make_field_error(field, error.message()),
-    }
-}
-
-fn unwrap_or_missing_error<T, E: serde::de::Error>(
+fn de_to_value<'de, A, T, E>(
+    map: &mut A,
     field: &'static str,
     value: Option<T>,
-) -> std::result::Result<T, E> {
-    value.ok_or_else(|| serde::de::Error::missing_field(field))
-}
-
-fn deserialize_i64<E>(field: &'static str, value: Value) -> Result<i64, E>
+) -> Result<Option<T>, E>
 where
-    E: serde::de::Error,
+    A: MapAccess<'de>,
+    T: Deserialize<'de>,
+    E: de::Error,
 {
-    i64::deserialize(value).map_err(|err| make_field_error(field, err))
-}
-
-fn deserialize_string<E>(field: &'static str, value: Value) -> Result<String, E>
-where
-    E: serde::de::Error,
-{
-    String::deserialize(value).map_err(|err| make_field_error(field, err))
-}
-
-fn ensure_valid_jsonrpc_version<E: serde::de::Error>(
-    field: &str,
-    jsonrpc: String,
-) -> std::result::Result<(), E> {
-    if jsonrpc == schema::VERSION {
-        Ok(())
-    } else {
-        Err(serde::de::Error::custom(format!(
-            "invalid value for field `{}`: expected version \"{}\", got \"{}\"",
-            field,
-            schema::VERSION,
-            jsonrpc
-        )))
+    if value.is_some() {
+        return Err(de::Error::duplicate_field(field));
     }
+
+    map.next_value::<T>()
+        .map_err(|err| E::custom(format!("field `{}` contains an {}", field, err)))
+        .map(Some)
+}
+
+fn make_unknown_field_error<E>(unknown: &str, fields: &'static [&str]) -> E
+where
+    E: de::Error,
+{
+    de::Error::unknown_field(unknown, fields)
+}
+
+fn unwrap_or_missing_error<T, E: de::Error>(field: &'static str, value: Option<T>) -> Result<T, E> {
+    value.ok_or_else(|| de::Error::missing_field(field))
+}
+
+fn validate_jsonrpc_version<E: de::Error>(
+    field: &'static str,
+    jsonrpc: Option<String>,
+) -> Result<(), E> {
+    let jsonrpc = unwrap_or_missing_error(field, jsonrpc)?;
+
+    if jsonrpc == schema::VERSION {
+        return Ok(());
+    }
+
+    Err(de::Error::custom(format!(
+        "invalid value for field `{}`: expected version \"{}\", got \"{}\"",
+        field,
+        schema::VERSION,
+        jsonrpc
+    )))
 }

@@ -40,7 +40,11 @@ impl ErrorCode {
             Self::CODE_INTERNAL_ERROR => Self::InternalError,
             Self::CODE_SERVER_ERROR_MIN..=Self::CODE_SERVER_ERROR_MAX => Self::ServerError(code),
             _ => {
-                error!("Cannot construct ErrorCode from value `{}`. Reason: `{}`", code, ErrorCode::InvalidRequest);
+                error!(
+                    "Cannot construct ErrorCode from value `{}`. Reason: `{}`",
+                    code,
+                    ErrorCode::InvalidRequest
+                );
 
                 return Error::new_default(ErrorCode::InvalidRequest)
                     .with_data(Self::ERR_INVALID_CODE)
@@ -63,12 +67,6 @@ impl ErrorCode {
     }
 }
 
-impl From<ErrorCode> for i64 {
-    fn from(value: ErrorCode) -> Self {
-        value.as_i64()
-    }
-}
-
 impl TryFrom<i64> for ErrorCode {
     type Error = Error;
 
@@ -84,21 +82,21 @@ impl Display for ErrorCode {
 }
 
 #[derive(Debug, Clone)]
-pub struct ErrorData(Value);
+pub struct ErrorData {
+    pub value: Value,
+}
 
 impl ErrorData {
     pub fn new<T: Into<Value>>(value: T) -> Self {
-        Self(value.into())
-    }
-
-    pub fn value(&self) -> &Value {
-        &self.0
+        Self {
+            value: value.into(),
+        }
     }
 }
 
 impl Display for ErrorData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.value().to_string())
+        f.write_str(&self.value.to_string())
     }
 }
 
@@ -110,9 +108,9 @@ impl<T: Into<Value>> From<T> for ErrorData {
 
 #[derive(Debug, Clone)]
 pub struct Error {
-    code: ErrorCode,
-    message: Cow<'static, str>,
-    data: Option<ErrorData>,
+    pub code: ErrorCode,
+    pub message: Cow<'static, str>,
+    pub data: Option<ErrorData>,
 }
 
 impl Error {
@@ -154,18 +152,6 @@ impl Error {
     pub fn with_data<T: Into<ErrorData>>(mut self, data: T) -> Self {
         self.data = Some(data.into());
         self
-    }
-
-    pub fn code(&self) -> &ErrorCode {
-        &self.code
-    }
-
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-
-    pub fn data(&self) -> Option<&ErrorData> {
-        self.data.as_ref()
     }
 }
 
