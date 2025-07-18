@@ -38,11 +38,24 @@ impl<'de> Deserialize<'de> for Id {
                 Ok(Id::default())
             }
 
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Id::I64(v))
+            }
+
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(Id::U64(v))
+                if v <= i64::MAX as u64 {
+                    Ok(Id::I64(v as i64))
+                } else {
+                    Err(de::Error::custom(format!(
+                        "invalid id value: {v} is too large; expected a 64-bit signed integer"
+                    )))
+                }
             }
 
             fn visit_string<E>(self, v: String) -> Result<Self::Value, E>

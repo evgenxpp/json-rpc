@@ -15,7 +15,7 @@ impl Serialize for Id {
     {
         match self {
             Id::Null => serializer.serialize_unit(),
-            Id::U64(id) => serializer.serialize_u64(*id),
+            Id::I64(id) => serializer.serialize_i64(*id),
             Id::Str(id) => serializer.serialize_str(id),
         }
     }
@@ -152,15 +152,15 @@ mod tests {
         assert!(json.is_ok());
         assert_eq!(json.unwrap(), Value::Null);
 
-        let raw = u64::MIN;
-        let id = Id::U64(raw);
+        let raw = i64::MIN;
+        let id = Id::I64(raw);
         let json = serde_json::to_value(&id);
 
         assert!(json.is_ok());
         assert_eq!(json.unwrap(), Value::from(raw));
 
-        let raw = u64::MAX;
-        let id = Id::U64(raw);
+        let raw = i64::MAX;
+        let id = Id::I64(raw);
         let json = serde_json::to_value(&id);
 
         assert!(json.is_ok());
@@ -263,7 +263,7 @@ mod tests {
             })
         );
 
-        let id = Id::U64(u64::MIN);
+        let id = Id::I64(i64::MIN);
         let method = "do".to_owned();
         let params = Parameters::Array(vec![1.into(), true.into()]);
         let request = Request::new(id.clone(), method.clone(), Some(params.clone()));
@@ -393,10 +393,10 @@ mod tests {
 
         assert_success_response_with(Id::Null, "smth");
         assert_success_response_with("id", u64::MAX);
-        assert_success_response_with(u64::MIN, true);
-        assert_success_response_with(u64::MAX, vec![1, 2, 3]);
+        assert_success_response_with(i64::MIN, true);
+        assert_success_response_with(i64::MAX, vec![1, 2, 3]);
         assert_success_response_with(
-            u64::MAX,
+            i64::MAX,
             json!({
                 "foo": 1,
                 "bar": true,
@@ -404,7 +404,7 @@ mod tests {
         );
 
         assert_error_response_with(Id::Null, Error::new_default(ErrorCode::ServerError(-32099)));
-        assert_error_response_with(u64::MAX, Error::new_default(ErrorCode::InternalError));
+        assert_error_response_with(i64::MAX, Error::new_default(ErrorCode::InternalError));
         assert_error_response_with(
             "id",
             Error::new_default(ErrorCode::InvalidParams).with_data("smth"),
@@ -440,10 +440,10 @@ mod tests {
         assert_message_with(Notification::new("do2", Some(obj_params.clone())));
         assert_message_with(Request::new(Id::Null, "", None));
         assert_message_with(Request::new("", "do1", Some(arr_params.clone())));
-        assert_message_with(Request::new(u64::MAX, "do2", Some(obj_params.clone())));
+        assert_message_with(Request::new(i64::MAX, "do2", Some(obj_params.clone())));
         assert_message_with(Response::new_success(Id::Null, "smth"));
         assert_message_with(Response::new_success("", arr_params_value.clone()));
-        assert_message_with(Response::new_success(u64::MAX, obj_params_value.clone()));
+        assert_message_with(Response::new_success(i64::MAX, obj_params_value.clone()));
         assert_message_with(Response::new_error(
             Id::Null,
             Error::new_default(ErrorCode::InternalError),
@@ -453,7 +453,7 @@ mod tests {
             Error::new_default(ErrorCode::InvalidParams).with_data(arr_params_value.clone()),
         ));
         assert_message_with(Response::new_error(
-            u64::MAX,
+            i64::MAX,
             Error::new_default(ErrorCode::InvalidParams).with_data(obj_params_value.clone()),
         ));
     }

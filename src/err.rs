@@ -9,7 +9,7 @@ use serde_json::Value;
 
 pub type Result<T> = StdResult<T, Error>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ErrorCode {
     ParseError,
     InvalidRequest,
@@ -81,7 +81,7 @@ impl Display for ErrorCode {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ErrorData {
     pub value: Value,
 }
@@ -106,7 +106,7 @@ impl<T: Into<Value>> From<T> for ErrorData {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Error {
     pub code: ErrorCode,
     pub message: Cow<'static, str>,
@@ -174,3 +174,85 @@ impl Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_code() {
+        fn assert_valid_error_code_with(num: i64, expected_code: ErrorCode) {
+            let actual = ErrorCode::create(num);
+            assert!(
+                actual.is_ok(),
+                "Error code {} is rejected, but should be accepted",
+                num
+            );
+
+            let actual = actual.unwrap();
+            assert_eq!(
+                actual, expected_code,
+                "Error code {} is accepted, but incorrect enum is produced: got {:?}, expected {:?}",
+                num, actual, expected_code
+            );
+
+            assert_eq!(
+                actual.as_i64(),
+                num,
+                "Enum variant {:?} returns unexpected value",
+                actual
+            );
+
+            assert_eq!(
+                actual.to_string(),
+                num.to_string(),
+                "Enum variant {:?} returns unexpected string representation",
+                actual
+            );
+        }
+
+        fn assert_invalid_error_code_with(num: i64) {
+            let result = ErrorCode::create(num);
+            assert!(
+                result.is_err(),
+                "Error code {} is accepted, but should be rejected",
+                num
+            );
+        }
+
+        // valid system error codes
+        assert_valid_error_code_with(-32700, ErrorCode::ParseError);
+        assert_valid_error_code_with(-32600, ErrorCode::InvalidRequest);
+        assert_valid_error_code_with(-32601, ErrorCode::MethodNotFound);
+        assert_valid_error_code_with(-32602, ErrorCode::InvalidParams);
+        assert_valid_error_code_with(-32603, ErrorCode::InternalError);
+
+        // valid server error range
+        assert_valid_error_code_with(-32099, ErrorCode::ServerError(-32099));
+        assert_valid_error_code_with(-32000, ErrorCode::ServerError(-32000));
+
+        // invalid codes
+        assert_invalid_error_code_with(0);
+        assert_invalid_error_code_with(-32100);
+        assert_invalid_error_code_with(-31999);
+    }
+
+    #[test]
+    fn test_error() {
+        fn assert_error_default_message(code: ErrorCode, msg: &str) {
+            let code = Error::new_default(code);
+            assert_eq!(
+                code.message, msg,
+                "Default message for {:?} is incorrect. Expected: {}",
+                code, msg
+            )
+        }
+
+        assert_error_default_message(ErrorCode::ParseError, "Parse error");
+        assert_error_default_message(ErrorCode::InvalidRequest, "Invalid Request");
+        assert_error_default_message(ErrorCode::MethodNotFound, "Method not found");
+        assert_error_default_message(ErrorCode::InvalidParams, "Invalid params");
+        assert_error_default_message(ErrorCode::InternalError, "Internal error");
+        assert_error_default_message(ErrorCode::ServerError(0), "Server error");
+    }
+}
