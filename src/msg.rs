@@ -65,7 +65,7 @@ impl Display for Id {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Parameters {
     Array(Vec<Value>),
     Object(Map<String, Value>),
@@ -107,7 +107,7 @@ impl Parameters {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Notification {
     pub method: String,
     pub params: Option<Parameters>,
@@ -125,7 +125,7 @@ impl Notification {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Request {
     pub id: Id,
     pub method: String,
@@ -146,7 +146,7 @@ impl Request {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Response {
     pub id: Id,
     pub result: Result<Value, Error>,
@@ -195,7 +195,7 @@ impl Response {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Message {
     Notification(Notification),
     Request(Request),

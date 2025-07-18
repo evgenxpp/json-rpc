@@ -27,7 +27,7 @@ pub mod parameters {
 }
 
 pub mod notification {
-    pub const DSL_SCHEMA: &str = "{ jsonrpc: \"2.0\", method: string, params?: []|{} }";
+    pub const DSL_SCHEMA: &str = "{jsonrpc: \"2.0\", method: string, params?: []|{}}";
 
     fields!(
         JSONRPC: "jsonrpc",
@@ -38,7 +38,7 @@ pub mod notification {
 
 pub mod request {
     pub const DSL_SCHEMA: &str =
-        "{ jsonrpc: \"2.0\", id: null|string|u64, method: string, params?: []|{} }";
+        "{jsonrpc: \"2.0\", id: null|string|u64, method: string, params?: []|{}}";
 
     fields!(
         JSONRPC: "jsonrpc",
@@ -49,7 +49,7 @@ pub mod request {
 }
 
 pub mod error {
-    pub const DSL_SCHEMA: &str = "{ code: i64, message: string, data?: any }";
+    pub const DSL_SCHEMA: &str = "{code: i64, message: string, data?: any}";
 
     fields!(
         CODE: "code",
@@ -59,7 +59,7 @@ pub mod error {
 }
 
 pub mod response {
-    pub const DSL_SCHEMA: &str = "{ jsonrpc: \"2.0\", id: null|string|u64, result: any }|{ jsonrpc: \"2.0\", id: null|string|u64, error: { code: i64, message: string, data?: any } }";
+    pub const DSL_SCHEMA: &str = "{jsonrpc: \"2.0\", id: null|string|u64, result: any }|{jsonrpc: \"2.0\", id: null|string|u64, error: {code: i64, message: string, data?: any}}";
 
     fields!(
         JSONRPC: "jsonrpc",
