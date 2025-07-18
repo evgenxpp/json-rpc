@@ -20,13 +20,15 @@ impl<'de> Deserialize<'de> for Id {
     where
         D: Deserializer<'de>,
     {
+        use schema::id::DSL_SCHEMA;
+
         struct IdVisitor;
 
         impl<'de> Visitor<'de> for IdVisitor {
             type Value = Id;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(schema::id::EXPECTED_SCHEMA)
+                write_dsl_schema(formatter, DSL_SCHEMA)
             }
 
             fn visit_unit<E>(self) -> Result<Self::Value, E>
@@ -67,13 +69,15 @@ impl<'de> Deserialize<'de> for Parameters {
     where
         D: Deserializer<'de>,
     {
+        use schema::parameters::DSL_SCHEMA;
+
         struct ParametersVisitor;
 
         impl<'de> Visitor<'de> for ParametersVisitor {
             type Value = Parameters;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(schema::parameters::EXPECTED_SCHEMA)
+                write_dsl_schema(formatter, DSL_SCHEMA)
             }
 
             fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
@@ -102,7 +106,7 @@ impl<'de> Deserialize<'de> for Notification {
     where
         D: Deserializer<'de>,
     {
-        use schema::notification::{EXPECTED_SCHEMA, FIELD_NAMES, fields};
+        use schema::notification::{DSL_SCHEMA, FIELD_NAMES, fields};
 
         struct NotificationVisitor;
 
@@ -110,7 +114,7 @@ impl<'de> Deserialize<'de> for Notification {
             type Value = Notification;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(EXPECTED_SCHEMA)
+                write_dsl_schema(formatter, DSL_SCHEMA)
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -159,7 +163,7 @@ impl<'de> Deserialize<'de> for Request {
     where
         D: Deserializer<'de>,
     {
-        use schema::request::{EXPECTED_SCHEMA, FIELD_NAMES, fields};
+        use schema::request::{DSL_SCHEMA, FIELD_NAMES, fields};
 
         struct RequestVisitor;
 
@@ -167,7 +171,7 @@ impl<'de> Deserialize<'de> for Request {
             type Value = Request;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(EXPECTED_SCHEMA)
+                write_dsl_schema(formatter, DSL_SCHEMA)
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -245,7 +249,7 @@ impl<'de> Deserialize<'de> for Error {
     where
         D: Deserializer<'de>,
     {
-        use schema::error::{EXPECTED_SCHEMA, FIELD_NAMES, fields};
+        use schema::error::{DSL_SCHEMA, FIELD_NAMES, fields};
 
         struct ErrorVisitor;
 
@@ -253,7 +257,7 @@ impl<'de> Deserialize<'de> for Error {
             type Value = Error;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(EXPECTED_SCHEMA)
+                write_dsl_schema(formatter, DSL_SCHEMA)
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -303,7 +307,7 @@ impl<'de> Deserialize<'de> for Response {
     where
         D: Deserializer<'de>,
     {
-        use schema::response::{EXPECTED_SCHEMA, FIELD_NAMES, fields};
+        use schema::response::{DSL_SCHEMA, FIELD_NAMES, fields};
 
         const MSG_MISSING_PAYLOAD: &str = "response must contain either `result` or `error`";
         const MSG_PAYLOAD_AMBIGUITY: &str =
@@ -315,7 +319,7 @@ impl<'de> Deserialize<'de> for Response {
             type Value = Response;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str(EXPECTED_SCHEMA)
+                write_dsl_schema(formatter, DSL_SCHEMA)
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -425,4 +429,8 @@ fn validate_jsonrpc_version<E: de::Error>(
         schema::VERSION,
         jsonrpc
     )))
+}
+
+fn write_dsl_schema(formatter: &mut fmt::Formatter, dsl_schema: &'static str) -> fmt::Result {
+    write!(formatter, "`DSL: {}`", dsl_schema)
 }
